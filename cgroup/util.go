@@ -170,12 +170,12 @@ func SupportedSubsystems(rootfsMountpoint string) (map[string]struct{}, error) {
 // SubsystemMountpoints returns the mountpoints for each of the given subsystems.
 // The returned map contains the subsystem name as a key and the value is the
 // mountpoint.
-func SubsystemMountpoints(rootfsMountpoint string, subsystems map[string]struct{}) (map[string]string, error) {
+func SubsystemMountpoints(workingDirectory,rootfsMountpoint string, subsystems map[string]struct{}) (map[string]string, error) {
 	if rootfsMountpoint == "" {
 		rootfsMountpoint = "/"
 	}
 
-	mountinfo, err := os.Open(filepath.Join(rootfsMountpoint, "proc", "self", "mountinfo"))
+	mountinfo, err := os.Open(filepath.Join(workingDirectory, "proc", "self", "mountinfo"))
 	if err != nil {
 		return nil, err
 	}

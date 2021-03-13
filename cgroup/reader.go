@@ -31,7 +31,9 @@ type mount struct {
 type Reader struct {
 	// Mountpoint of the root filesystem. Defaults to / if not set. This can be
 	// useful for example if you mount / as /rootfs inside of a container.
-	rootfsMountpoint         string
+	rootfsMountpoint string
+	// WorkingDirectory is the directory where the proc files are available.
+	workingDirectory         string
 	ignoreRootCgroups        bool // Ignore a cgroup when its path is "/".
 	cgroupsHierarchyOverride string
 	cgroupMountpoints        map[string]string // Mountpoints for each subsystem (e.g. cpu, cpuacct, memory, blkio).
@@ -43,6 +45,13 @@ type ReaderOptions struct {
 	//
 	// If unspecified, "/" is assumed.
 	RootfsMountpoint string
+
+	// WorkingDirectory holds the directory where the filesystem has been copied,
+	// this is useful when the file system has been copied on an other machine in
+	// order to be analysed.
+	//
+	// If unspecified, the value of RootfsMountpoint is used.
+	WorkingDirectory string
 
 	// IgnoreRootCgroups ignores cgroup subsystem with the path "/".
 	IgnoreRootCgroups bool
@@ -61,6 +70,7 @@ type ReaderOptions struct {
 func NewReader(rootfsMountpoint string, ignoreRootCgroups bool) (*Reader, error) {
 	return NewReaderOptions(ReaderOptions{
 		RootfsMountpoint:  rootfsMountpoint,
+		WorkingDirectory:  rootfsMountpoint,
 		IgnoreRootCgroups: ignoreRootCgroups,
 	})
 }
@@ -71,20 +81,25 @@ func NewReaderOptions(opts ReaderOptions) (*Reader, error) {
 		opts.RootfsMountpoint = "/"
 	}
 
+	if opts.WorkingDirectory == "" {
+		opts.WorkingDirectory = opts.RootfsMountpoint
+	}
+
 	// Determine what subsystems are supported by the kernel.
-	subsystems, err := SupportedSubsystems(opts.RootfsMountpoint)
+	subsystems, err := SupportedSubsystems(opts.WorkingDirectory)
 	if err != nil {
 		return nil, err
 	}
 
 	// Locate the mountpoints of those subsystems.
-	mountpoints, err := SubsystemMountpoints(opts.RootfsMountpoint, subsystems)
+	mountpoints, err := SubsystemMountpoints(opts.WorkingDirectory, opts.RootfsMountpoint, subsystems)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Reader{
 		rootfsMountpoint:         opts.RootfsMountpoint,
+		workingDirectory:         opts.WorkingDirectory,
 		ignoreRootCgroups:        opts.IgnoreRootCgroups,
 		cgroupsHierarchyOverride: opts.CgroupsHierarchyOverride,
 		cgroupMountpoints:        mountpoints,
@@ -94,7 +109,7 @@ func NewReaderOptions(opts ReaderOptions) (*Reader, error) {
 // GetStatsForProcess returns cgroup metrics and limits associated with a process.
 func (r *Reader) GetStatsForProcess(pid int) (*Stats, error) {
 	// Read /proc/[pid]/cgroup to get the paths to the cgroup metrics.
-	paths, err := ProcessCgroupPaths(r.rootfsMountpoint, pid)
+	paths, err := ProcessCgroupPaths(r.workingDirectory, pid)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +140,7 @@ func (r *Reader) GetStatsForProcess(pid int) (*Stats, error) {
 			mountpoint: subsystemMount,
 			id:         id,
 			path:       path,
-			fullPath:   filepath.Join(subsystemMount, path),
+			fullPath:   filepath.Join(r.workingDirectory, subsystemMount, path),
 		}
 	}
 

@@ -127,7 +127,7 @@ func TestSubsystemMountpoints(t *testing.T) {
 	subsystems["memory"] = struct{}{}
 	subsystems["perf_event"] = struct{}{}
 
-	mountpoints, err := SubsystemMountpoints("testdata/docker", subsystems)
+	mountpoints, err := SubsystemMountpoints("testdata/docker", "testdata/docker", subsystems)
 	if err != nil {
 		t.Fatal(err)
 	}
